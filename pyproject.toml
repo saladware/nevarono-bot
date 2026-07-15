@@ -29,4 +29,5 @@ dev = [
     "wemake-python-styleguide>=1.6.2; python_version >= '3.14'",
     "ty; python_version >= '3.14'",
     "mypy>=1.4.1",
+    "ruff>=0.15.21",
 ]
