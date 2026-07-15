@@ -1,9 +1,13 @@
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.bot import TelegramBot
 from src.config import get_config
-from src.news_parser import NewsItem, parse_news
+from src.news_parser import parse_news
+
+if TYPE_CHECKING:
+    from src.news import NewsItem
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
