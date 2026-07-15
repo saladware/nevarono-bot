@@ -21,6 +21,7 @@ select = ["WPS"]
 
 [tool.ty.rules]
 all = "error"
+missing-override-decorator = "ignore"
 
 
 [dependency-groups]
