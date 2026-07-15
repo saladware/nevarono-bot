@@ -1,8 +1,6 @@
-name: Parser Bot (Cache)
+name: Parser Bot 
 
 on:
-  schedule:
-    - cron: '27 * * * *'
   workflow_dispatch:
 
 jobs:
