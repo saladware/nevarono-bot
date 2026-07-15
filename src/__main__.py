@@ -49,7 +49,7 @@ def publish_news(
 ) -> None:
     try:
         for new_item in new_items:
-            bot.send_message(chat_id=chat_id, text=new_item.summary, parse_mode="HTML")
+            bot.send_message(chat_id=chat_id, text=str(new_item), parse_mode="HTML")
             logger.info("News published with ID %s", new_item.id)
             published_ids.append(new_item.id)
     except Exception:
