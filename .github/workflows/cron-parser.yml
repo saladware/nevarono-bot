@@ -1,0 +1,33 @@
+name: Parser Bot (Cache)
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-parser:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore cache state
+        uses: actions/cache@v4
+        with:
+          path: published_ids.txt
+          key: parser-state-${{ github.run_id }}
+          restore-keys: |
+            parser-state-
+
+      - name: Run parser
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python parser.py
