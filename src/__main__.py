@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING
@@ -68,27 +69,26 @@ def filter_new_news_items(
     return new_items
 
 
-def main() -> None:
+def main() -> int:
     logging.basicConfig(level="DEBUG")
     config = get_config()
 
     bot = TelegramBot(config.bot_token)
-
     try:
         news_items = parse_news()
     except Exception:
         logger.exception("Unable to parse news")
-        return
+        return 1
 
     if not news_items:
-        logger.info("No news")
-        return
+        logger.error("No news")
+        return 2
 
     published_ids = load_published_ids(DB_FILE)
 
     news_items = filter_new_news_items(news_items, published_ids)
     if not news_items:
-        return
+        return 0
 
     for new_item in news_items:
         publish_news(bot, config.chat_id, new_item)
@@ -97,6 +97,8 @@ def main() -> None:
 
     save_published_ids(DB_FILE, published_ids)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
