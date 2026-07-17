@@ -70,8 +70,8 @@ def parse_news(page: int = 1, path: str = "/novosti") -> "list[NewsItem]":  # no
             keywords=[tag["name"] for tag in entry["tags"]],
             attachments=[
                 Attachment(
-                    filename=f"https://{DOMAIN}{attachment['filename']}",
-                    link=attachment["link"],
+                    filename=attachment["filename"],
+                    link=f"https://{DOMAIN}{attachment['link']}",
                 )
                 for attachment in entry["attachments"]
             ],
