@@ -1,6 +1,8 @@
 import json
 import re
 from datetime import datetime, timezone
+from html import escape
+from html.parser import HTMLParser
 from urllib.request import urlopen
 from xml.etree import ElementTree as ET
 
@@ -71,30 +73,66 @@ def _parse_author(entry: ET.Element) -> Author:  # pyright: ignore[reportUnusedF
     )
 
 
+class SummaryCleaner(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+        self.ignore_content = False
+
+    def handle_starttag(self, tag: str, attrs: "list[tuple[str, str | None]]") -> None:
+        if tag.lower() == "script":
+            self.ignore_content = True
+            return
+
+        if self.ignore_content:
+            return
+
+        if tag.lower() in ("br", "div", "p", "span"):
+            return
+
+        if tag.lower() == "a":
+            href_attr = next(
+                (
+                    f'{key}="{escape(attr_val)}"'
+                    for key, attr_val in attrs
+                    if key.lower() == "href" and attr_val
+                ),
+                "",
+            )
+            self.parts.append(f"<a {href_attr}>" if href_attr else "<a>")
+        else:
+            self.parts.append(f"<{tag}>")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "script":
+            self.ignore_content = False
+            return
+
+        if self.ignore_content:
+            return
+
+        no_gap = self.parts[-1] == "\n\n"
+        if tag.lower() in ("div", "p") and no_gap:
+            self.parts.append("\n\n")
+            return
+
+        if tag.lower() in ("br", "span"):
+            return
+
+        self.parts.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:  # noqa: WPS110
+        if not self.ignore_content:
+            self.parts.append(data)
+
+
 def _clean_summary(summary_html: str) -> str:
     if not summary_html.strip():
         return summary_html
 
-    pattern = re.compile(
-        r'\b(style|class)\s*=\s*(?:\'[^\']*\'|"[^"]*"|[^\s>]+)', re.IGNORECASE
-    )
+    parser = SummaryCleaner()
+    parser.feed(summary_html)
+    cleaned = "".join(parser.parts)
 
-    # remove scripts
-    cleaned = re.sub(
-        r"<script\b[^>]*>([\s\S]*?)</script>", "", summary_html, flags=re.IGNORECASE
-    )
-
-    # remove br tag
-    cleaned = re.sub(r"</?br\s*/?>", "", cleaned, flags=re.IGNORECASE)
-
-    # remove style and class attrs
-    cleaned = pattern.sub("", cleaned)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned)
-    cleaned = re.sub(r"\s+>", ">", cleaned)
-
-    # remove div, p, span tags (without content)
-    cleaned = re.sub(r"</?(div|p|span)(?:\s+[^>]*)?>", "", cleaned)
-
-    # replace hard whitespace to soft
     cleaned = cleaned.replace("&nbsp;", " ")
-    return re.sub(r"\n+", "\n\n", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned)
