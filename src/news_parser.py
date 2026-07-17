@@ -1,5 +1,6 @@
+import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.request import urlopen
 from xml.etree import ElementTree as ET
 
@@ -12,48 +13,42 @@ DOMAIN = "nevarono.spb.ru"
 namespaces = {"atom": "http://www.w3.org/2005/Atom"}
 
 
-def parse_news(page: int = 0, path: str = "novosti.html") -> "list[NewsItem]":
-    start = page * 10
+def parse_news(
+    page: int = 1, limit: int = 10, path: str = "novosti.html"
+) -> "list[NewsItem]":
     path = path.lstrip("/")
 
     with urlopen(
-        f"https://{DOMAIN}/{path}?format=feed&type=atom&start={start}"
+        f"https://{DOMAIN}/{path}?format=json&limit={limit}&page={page}"
     ) as response:
-        xml_data = response.read().decode("utf-8")
-
-    root = ET.fromstring(xml_data)  # noqa: S314 trusted xml
+        json_output = json.load(response)
 
     return [
         NewsItem(
-            id=_parse_post_id(entry),
-            title=_get_text(entry, "atom:title"),
-            url=_get_text(entry, "atom:id"),
-            published_at=_parse_datetime(_get_text(entry, "atom:published")),
-            updated_at=_parse_datetime(_get_text(entry, "atom:updated")),
-            author=_parse_author(entry),
-            is_important=False,
-            category=_get_category(entry),
-            summary=_clean_summary(_get_text(entry, "atom:summary")),
+            id=int(news_item["id"]),
+            title=news_item["title"],
+            url=news_item["link"],
+            published_at=_parse_datetime(news_item["created"]),
+            updated_at=(
+                _parse_datetime(
+                    news_item["created"]
+                    if news_item["modified"] == "0000-00-00 00:00:00"
+                    else news_item["modified"]
+                )
+            ),
+            author=Author(name=news_item["author"]["name"], email=""),
+            is_important=news_item["featured"] == "1",
+            category=news_item["category"]["name"],
+            summary=_clean_summary(news_item["introtext"]),
+            keywords=[tag["name"] for tag in news_item["tags"]],
         )
-        for entry in root.findall("atom:entry", namespaces)
+        for news_item in json_output["items"]
     ]
 
 
-def _parse_post_id(entry: ET.Element) -> int:
-    url = _get_text(entry, "atom:id")
-    last = url.rstrip("/").split("/")[-1]
-
-    match = re.match(r"^(\d+)", last)
-    if not match:
-        msg = f"cannot parse news id from string: {last}"
-        raise NewsParsingError(msg)
-
-    return int(match.group(1))
-
-
 def _parse_datetime(datetime_str: str) -> datetime:
-    published_str = re.sub(r"([+-]\d{2}):(\d{2})$", r"\1\2", datetime_str)
-    return datetime.strptime(published_str, "%Y-%m-%dT%H:%M:%S%z")
+    dt_format = "%Y-%m-%d %H:%M:%S"
+    return datetime.strptime(datetime_str, dt_format).replace(tzinfo=timezone.utc)
 
 
 def _get_text(element: ET.Element, path: str) -> str:
@@ -64,19 +59,7 @@ def _get_text(element: ET.Element, path: str) -> str:
     return text
 
 
-def _get_category(entry: ET.Element) -> str:
-    category_el = entry.find("atom:category", namespaces)
-    if category_el is None:
-        msg = "Missing category element"
-        raise NewsParsingError(msg)
-    category = category_el.get("term")
-    if category is None:
-        msg = "Missing category term attribute"
-        raise NewsParsingError(msg)
-    return category
-
-
-def _parse_author(entry: ET.Element) -> Author:
+def _parse_author(entry: ET.Element) -> Author:  # pyright: ignore[reportUnusedFunction]
     author_elem = entry.find("atom:author", namespaces)
     if author_elem is None:
         msg = "Missing author element"
