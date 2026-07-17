@@ -27,7 +27,7 @@ def parse_news(
         NewsItem(
             id=int(news_item["id"]),
             title=news_item["title"],
-            url=news_item["link"],
+            url=f"{DOMAIN}{news_item['link']}",
             published_at=_parse_datetime(news_item["created"]),
             updated_at=(
                 _parse_datetime(

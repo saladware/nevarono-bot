@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from time import sleep
 from typing import TYPE_CHECKING
 
 from src.bot import TelegramBot
@@ -41,22 +42,18 @@ def save_published_ids(
         logger.exception("Error during writing IDs file")
 
 
-def publish_news(
-    bot: TelegramBot,
-    chat_id: int,
-    new_items: "list[NewsItem]",
-    published_ids: "list[int]",
-) -> None:
+def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
     try:
-        for new_item in new_items:
-            bot.send_message(chat_id=chat_id, text=str(new_item), parse_mode="HTML")
-            logger.info("News published with ID %s", new_item.id)
-            published_ids.append(new_item.id)
+        bot.send_message(chat_id=chat_id, text=str(news), parse_mode="HTML")
     except Exception:
-        logger.exception("Error sending to Telegram")
+        logger.exception("Error sending to Telegram %s", news.url)
+        return False
+    else:
+        logger.info("News published with ID %s", news.id)
+        return True
 
 
-def filter_new_items(
+def filter_new_news_items(
     news: "list[NewsItem]",
     published_ids: "list[int]",
 ) -> "list[NewsItem]":
@@ -74,25 +71,30 @@ def filter_new_items(
 def main() -> None:
     logging.basicConfig(level="DEBUG")
     config = get_config()
+
     bot = TelegramBot(config.bot_token)
 
     try:
-        news = parse_news(page=0)
+        news_items = parse_news()
     except Exception:
         logger.exception("Unable to parse news")
         return
 
-    if not news:
+    if not news_items:
         logger.info("No news")
         return
 
     published_ids = load_published_ids(DB_FILE)
 
-    new_items = filter_new_items(news, published_ids)
-    if not new_items:
+    news_items = filter_new_news_items(news_items, published_ids)
+    if not news_items:
         return
 
-    publish_news(bot, config.chat_id, new_items, published_ids)
+    for new_item in news_items:
+        publish_news(bot, config.chat_id, new_item)
+        sleep(3)
+        published_ids.append(new_item.id)
+
     save_published_ids(DB_FILE, published_ids)
 
 
