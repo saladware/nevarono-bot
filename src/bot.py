@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+
+from src.fetch import fetch
 
 DOMAIN = "api.telegram.org"
 
@@ -21,18 +21,13 @@ class TelegramBot:
         )
 
     def _call_method(self, method: str, **payload: object) -> object:
-        try:
-            with urlopen(
-                Request(
-                    f"https://{DOMAIN}/bot{self._bot_token}/{method}",
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json; charset=utf-8"},
-                )
-            ) as response:
-                return json.load(response)
-        except HTTPError as exc:
-            logger.exception("%s", exc.read().decode())
-            raise
+        with fetch(
+            domain=DOMAIN,
+            path=f"/bot{self._bot_token}/{method}",
+            payload=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        ) as response:
+            return json.load(response)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
-import json
 import re
 from datetime import datetime, timezone
-from html import escape
-from html.parser import HTMLParser
-from urllib.request import urlopen
+from logging import getLogger
+from typing import NamedTuple
 from xml.etree import ElementTree as ET
 
+from src.api import get_news_json, get_news_xml
+from src.cleaner import clean_summary
 from src.exceptions import NewsParsingError
 from src.news import Author, NewsItem
 
@@ -14,38 +14,74 @@ DOMAIN = "nevarono.spb.ru"
 
 namespaces = {"atom": "http://www.w3.org/2005/Atom"}
 
+logger = getLogger(__name__)
 
-def parse_news(
-    page: int = 1, limit: int = 10, path: str = "novosti.html"
-) -> "list[NewsItem]":
-    path = path.lstrip("/")
 
-    with urlopen(
-        f"https://{DOMAIN}/{path}?format=json&limit={limit}&page={page}"
-    ) as response:
-        json_output = json.load(response)
+class XMLEntryPayload(NamedTuple):
+    summary: str
+    author_email: str
 
-    return [
-        NewsItem(
-            id=int(news_item["id"]),
-            title=news_item["title"],
-            url=f"{DOMAIN}{news_item['link']}",
-            published_at=_parse_datetime(news_item["created"]),
-            updated_at=(
-                _parse_datetime(
-                    news_item["created"]
-                    if news_item["modified"] == "0000-00-00 00:00:00"
-                    else news_item["modified"]
-                )
-            ),
-            author=Author(name=news_item["author"]["name"], email=""),
-            is_important=news_item["featured"] == "1",
-            category=news_item["category"]["name"],
-            summary=_clean_summary(news_item["introtext"]),
-            keywords=[tag["name"] for tag in news_item["tags"]],
+
+def parse_email_and_summary_from_entries(
+    entries: "list[ET.Element]",
+) -> "dict[int, XMLEntryPayload]":
+    payload: dict[int, XMLEntryPayload] = {}
+    for entry in entries:
+        entry_url = _get_text(entry, "atom:id")
+        entry_id = _parse_post_id_from_url(entry_url)
+        payload[entry_id] = XMLEntryPayload(
+            summary=_get_text(entry, "atom:summary"),
+            author_email=_get_text(entry, "atom:author/atom:email"),
         )
-        for news_item in json_output["items"]
-    ]
+    return payload
+
+
+def parse_news(page: int = 1, path: str = "/novosti") -> "list[NewsItem]":  # noqa: WPS210
+    news: list[NewsItem] = []
+    xml_entries = get_news_xml(page, path)
+    xml_entries_payload = parse_email_and_summary_from_entries(xml_entries)
+    json_entries = get_news_json(page, len(xml_entries), path)
+
+    for entry in json_entries:
+        entry_id = int(entry["id"])
+        xml_payload = xml_entries_payload.get(entry_id)
+        if xml_payload is None:
+            author_email = ""
+            summary = entry["introtext"]
+            logger.warning("no match betwean json and xml. fallback to json values")
+        else:
+            author_email = xml_payload.author_email
+            summary = xml_payload.summary
+        published_at = _parse_datetime(entry["created"])
+        news_item = NewsItem(
+            id=entry_id,
+            title=entry["title"],
+            url=f"https://{DOMAIN}{entry['link']}",
+            published_at=published_at,
+            updated_at=(
+                published_at
+                if entry["modified"] == "0000-00-00 00:00:00"
+                else _parse_datetime(entry["modified"])
+            ),
+            author=Author(name=entry["author"]["name"], email=author_email),
+            is_important=entry["featured"] == "1",
+            category=entry["category"]["name"],
+            summary=clean_summary(summary),
+            keywords=[tag["name"] for tag in entry["tags"]],
+        )
+        news.append(news_item)
+    return news
+
+
+def _parse_post_id_from_url(url: str) -> int:
+    last = url.rstrip("/").split("/")[-1]
+
+    match = re.match(r"^(\d+)", last)
+    if not match:
+        msg = f"cannot parse news id from string: {last}"
+        raise NewsParsingError(msg)
+
+    return int(match.group(1))
 
 
 def _parse_datetime(datetime_str: str) -> datetime:
@@ -59,80 +95,3 @@ def _get_text(element: ET.Element, path: str) -> str:
         msg = f"Missing required element text: {path}"
         raise NewsParsingError(msg)
     return text
-
-
-def _parse_author(entry: ET.Element) -> Author:  # pyright: ignore[reportUnusedFunction]
-    author_elem = entry.find("atom:author", namespaces)
-    if author_elem is None:
-        msg = "Missing author element"
-        raise NewsParsingError(msg)
-
-    return Author(
-        name=_get_text(author_elem, "atom:name"),
-        email=_get_text(author_elem, "atom:email"),
-    )
-
-
-class SummaryCleaner(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.parts: list[str] = []
-        self.ignore_content = False
-
-    def handle_starttag(self, tag: str, attrs: "list[tuple[str, str | None]]") -> None:
-        if tag.lower() == "script":
-            self.ignore_content = True
-            return
-
-        if self.ignore_content:
-            return
-
-        if tag.lower() in ("br", "div", "p", "span"):
-            return
-
-        if tag.lower() == "a":
-            href_attr = next(
-                (
-                    f'{key}="{escape(attr_val)}"'
-                    for key, attr_val in attrs
-                    if key.lower() == "href" and attr_val
-                ),
-                "",
-            )
-            self.parts.append(f"<a {href_attr}>" if href_attr else "<a>")
-        else:
-            self.parts.append(f"<{tag}>")
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag.lower() == "script":
-            self.ignore_content = False
-            return
-
-        if self.ignore_content:
-            return
-
-        if tag.lower() in ("div", "p"):
-            if self.parts[-1] != "\n":
-                self.parts.append("\n")
-            return
-
-        if tag.lower() in ("br", "span"):
-            return
-
-        self.parts.append(f"</{tag}>")
-
-    def handle_data(self, data: str) -> None:  # noqa: WPS110
-        if not self.ignore_content:
-            self.parts.append(data)
-
-
-def _clean_summary(summary_html: str) -> str:
-    if not summary_html.strip():
-        return summary_html
-
-    parser = SummaryCleaner()
-    parser.feed(summary_html)
-    cleaned = "".join(parser.parts)
-
-    cleaned = cleaned.replace("&nbsp;", " ")
-    return re.sub(r"[ \t]{2,}", " ", cleaned).rstrip()
