@@ -52,11 +52,12 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
     else:
         logger.info("News published with ID %s", news.id)
     for attachment in news.attachments:
-        filename = f"{attachment.link}?file={attachment.filename}"
         try:
-            bot.send_document_by_url(chat_id, filename)
-        except Exception:
-            logger.exception("Error sending file to Telegram %s %s", news.url, filename)
+            bot.send_document_by_url(chat_id, attachment.link)
+        except Exception:  # noqa: PERF203
+            logger.exception(
+                "Error sending file to Telegram %s %s", news.url, attachment.link
+            )
             return False
     return True
 
