@@ -78,12 +78,23 @@ def _clean_summary(summary_html: str) -> str:
     pattern = re.compile(
         r'\b(style|class)\s*=\s*(?:\'[^\']*\'|"[^"]*"|[^\s>]+)', re.IGNORECASE
     )
+
+    # remove scripts
     cleaned = re.sub(
         r"<script\b[^>]*>([\s\S]*?)</script>", "", summary_html, flags=re.IGNORECASE
     )
+
+    # remove br tag
+    cleaned = re.sub(r"</?br\s*/?>", "", cleaned, flags=re.IGNORECASE)
+
+    # remove style and class attrs
     cleaned = pattern.sub("", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     cleaned = re.sub(r"\s+>", ">", cleaned)
+
+    # remove div, p, span tags (without content)
     cleaned = re.sub(r"</?(div|p|span)(?:\s+[^>]*)?>", "", cleaned)
+
+    # replace hard whitespace to soft
     cleaned = cleaned.replace("&nbsp;", " ")
     return re.sub(r"\n+", "\n\n", cleaned)
