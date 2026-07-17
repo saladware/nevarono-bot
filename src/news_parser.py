@@ -78,7 +78,10 @@ def _clean_summary(summary_html: str) -> str:
     pattern = re.compile(
         r'\b(style|class)\s*=\s*(?:\'[^\']*\'|"[^"]*"|[^\s>]+)', re.IGNORECASE
     )
-    cleaned = pattern.sub("", summary_html)
+    cleaned = re.sub(
+        r"<script\b[^>]*>([\s\S]*?)</script>", "", summary_html, flags=re.IGNORECASE
+    )
+    cleaned = pattern.sub("", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     cleaned = re.sub(r"\s+>", ">", cleaned)
     cleaned = re.sub(r"</?(div|p|span)(?:\s+[^>]*)?>", "", cleaned)
