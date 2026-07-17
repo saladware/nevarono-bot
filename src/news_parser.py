@@ -112,8 +112,8 @@ class SummaryCleaner(HTMLParser):
             return
 
         if tag.lower() in ("div", "p"):
-            if self.parts[-1] == "\n\n":
-                self.parts.append("\n\n")
+            if self.parts[-1] != "\n":
+                self.parts.append("\n")
             return
 
         if tag.lower() in ("br", "span"):
@@ -135,4 +135,4 @@ def _clean_summary(summary_html: str) -> str:
     cleaned = "".join(parser.parts)
 
     cleaned = cleaned.replace("&nbsp;", " ")
-    return re.sub(r"[ \t]{2,}", " ", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).rstrip()
