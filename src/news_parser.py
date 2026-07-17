@@ -111,9 +111,9 @@ class SummaryCleaner(HTMLParser):
         if self.ignore_content:
             return
 
-        no_gap = self.parts[-1] == "\n\n"
-        if tag.lower() in ("div", "p") and no_gap:
-            self.parts.append("\n\n")
+        if tag.lower() in ("div", "p"):
+            if self.parts[-1] == "\n\n":
+                self.parts.append("\n\n")
             return
 
         if tag.lower() in ("br", "span"):
