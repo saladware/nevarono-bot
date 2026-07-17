@@ -47,11 +47,18 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
     try:
         bot.send_message(chat_id=chat_id, text=str(news), parse_mode="HTML")
     except Exception:
-        logger.exception("Error sending to Telegram %s", news.url)
+        logger.exception("Error sending message to Telegram %s", news.url)
         return False
     else:
         logger.info("News published with ID %s", news.id)
-        return True
+    for attachment in news.attachments:
+        filename = f"{attachment.link}?file={attachment.filename}"
+        try:
+            bot.send_document_by_url(chat_id, filename)
+        except Exception:
+            logger.exception("Error sending file to Telegram %s %s", news.url, filename)
+            return False
+    return True
 
 
 def filter_new_news_items(

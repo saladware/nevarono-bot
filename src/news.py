@@ -7,6 +7,11 @@ class Author(NamedTuple):
     email: str
 
 
+class Attachment(NamedTuple):
+    filename: str
+    link: str
+
+
 class NewsItem(NamedTuple):
     id: int
     title: str
@@ -18,6 +23,7 @@ class NewsItem(NamedTuple):
     author: Author
     summary: str
     keywords: "list[str]"
+    attachments: "list[Attachment]"
 
     def __str__(self) -> str:
         hashtags_part = " ".join(map(_hashtag, [self.category, *self.keywords]))

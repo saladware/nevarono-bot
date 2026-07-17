@@ -28,6 +28,11 @@ class TagDict(TypedDict):
     name: str
 
 
+class AttachmentDict(TypedDict):
+    filename: str
+    link: str
+
+
 class NewsDict(TypedDict):
     id: str
     title: str
@@ -39,6 +44,7 @@ class NewsDict(TypedDict):
     category: CategoryDict
     introtext: str
     tags: "list[TagDict]"
+    attachments: "list[AttachmentDict]"
 
 
 def get_news_json(

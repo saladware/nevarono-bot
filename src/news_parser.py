@@ -7,7 +7,7 @@ from xml.etree import ElementTree as ET
 from src.api import get_news_json, get_news_xml
 from src.cleaner import clean_summary
 from src.exceptions import NewsParsingError
-from src.news import Author, NewsItem
+from src.news import Attachment, Author, NewsItem
 
 DOMAIN = "nevarono.spb.ru"
 
@@ -68,6 +68,13 @@ def parse_news(page: int = 1, path: str = "/novosti") -> "list[NewsItem]":  # no
             category=entry["category"]["name"],
             summary=clean_summary(summary),
             keywords=[tag["name"] for tag in entry["tags"]],
+            attachments=[
+                Attachment(
+                    filename=f"https://{DOMAIN}{attachment['filename']}",
+                    link=attachment["link"],
+                )
+                for attachment in entry["attachments"]
+            ],
         )
         news.append(news_item)
     return news
