@@ -1,8 +1,9 @@
 import json
 from logging import getLogger
-from typing import Any, Generic, Literal, TypedDict, TypeVar, cast
+from typing import Any, BinaryIO, Generic, Literal, TypedDict, TypeVar, cast
 
 from src.fetch import fetch
+from src.multipart import MultipartBuilder
 
 DOMAIN = "api.telegram.org"
 
@@ -67,6 +68,33 @@ class TelegramBot:
             self._call_method("sendDocument", **payload),
         )
         return output["result"]
+
+    def send_local_document(
+        self,
+        chat_id: int,
+        file_obj: BinaryIO,
+        caption: "str | None" = None,
+        reply_id: "int | None" = None,
+        parse_mode: str = "HTML",
+    ) -> SendMessageResult:
+        builder = MultipartBuilder()
+        builder.add_field("chat_id", chat_id)
+        builder.add_file("document", file_obj)
+
+        if reply_id is not None:
+            builder.add_field("reply_parameters", {"message_id": reply_id})
+        if caption is not None:
+            builder.add_field("caption", caption)
+            builder.add_field("parse_mode", parse_mode)
+
+        with fetch(
+            domain=DOMAIN,
+            path=f"/bot{self._bot_token}/sendDocument",
+            payload=builder.build_chunked(),
+            headers=builder.headers(),
+        ) as response:
+            output = cast("TelegramOutput[SendMessageResult]", json.load(response))
+            return output["result"]
 
     def _call_method(self, method: str, **payload: object) -> TelegramOutput[Any]:
         with fetch(

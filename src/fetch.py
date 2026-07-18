@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from http.client import HTTPResponse
 
 logger = getLogger()
@@ -16,7 +17,7 @@ def fetch(  # noqa: WPS211, PLR0913
     *,
     queries: "dict[str, str] | None" = None,
     headers: "MutableMapping[str, str] | None" = None,
-    payload: "bytes | None" = None,
+    payload: "bytes | Iterable[bytes] | None" = None,
     timeout: float = 5,
 ) -> "HTTPResponse":
     query = f"?{urlencode(queries)}" if queries else ""
