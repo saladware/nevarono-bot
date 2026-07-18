@@ -10,12 +10,14 @@ if TYPE_CHECKING:
 logger = getLogger()
 
 
-def fetch(
+def fetch(  # noqa: WPS211, PLR0913
     domain: str,
     path: str,
+    *,
     queries: "dict[str, str] | None" = None,
     headers: "MutableMapping[str, str] | None" = None,
     payload: "bytes | None" = None,
+    timeout: float = 5,
 ) -> "HTTPResponse":
     query = f"?{urlencode(queries)}" if queries else ""
     try:
@@ -24,10 +26,12 @@ def fetch(
                 f"https://{domain}/{path.lstrip('/')}{query}",
                 headers=headers or {},
                 data=payload,
-            )
+            ),
+            timeout=timeout,
         )
     except HTTPError as exc:
         logger.exception("Request error: %s", exc.read().decode())
+
         raise
     else:
         return cast("HTTPResponse", response)
