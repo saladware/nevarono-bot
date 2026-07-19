@@ -55,6 +55,7 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
     is_ok = True
     for attachment in news.attachments:
         with fetch(attachment.link) as response:
+            response.name = attachment.filename  # type: ignore[misc]  # ty: ignore[invalid-assignment]
             try:
                 bot.send_local_document(chat_id, response)
             except Exception:
