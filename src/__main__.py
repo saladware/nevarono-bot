@@ -46,7 +46,7 @@ def save_published_ids(
 
 def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
     try:
-        bot.send_message(chat_id=chat_id, text=str(news), parse_mode="HTML")
+        msg = bot.send_message(chat_id=chat_id, text=str(news), parse_mode="HTML")
     except Exception:
         logger.exception("Error sending message to Telegram %s", news.url)
         return False
@@ -57,7 +57,7 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
         with fetch(attachment.link) as response:
             response.name = attachment.filename  # type: ignore[misc]  # ty: ignore[invalid-assignment]
             try:
-                bot.send_local_document(chat_id, response)
+                bot.send_local_document(chat_id, response, reply_id=msg["message_id"])
             except Exception:
                 logger.exception(
                     "Error sending file to Telegram %s %s", news.url, attachment.link
