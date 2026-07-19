@@ -38,27 +38,6 @@ class TelegramBot:
         output = self._call_method("sendMessage", **payload)
         return cast("SendMessageResult", output)
 
-    def send_document_by_url(
-        self,
-        chat_id: int,
-        url: str,
-        caption: "str | None" = None,
-        reply_id: "int | None" = None,
-        parse_mode: str = "HTML",
-    ) -> SendMessageResult:
-        payload: dict[str, object] = {
-            "chat_id": chat_id,
-            "document": url,
-        }
-        if reply_id is not None:
-            payload["reply_parameters"] = {"message_id": reply_id}
-        if caption is not None:
-            payload["caption"] = caption
-            payload["parse_mode"] = parse_mode
-
-        output = self._call_method("sendDocument", **payload)
-        return cast("SendMessageResult", output)
-
     def send_local_document(
         self,
         chat_id: int,
