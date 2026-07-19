@@ -80,7 +80,7 @@ class TelegramBot:
     def _prepare_request(
         self, payload: "dict[str, object]"
     ) -> "tuple[bytes | Generator[bytes, None, None], dict[str,str]]":
-        if any(isinstance(payload_val, BinaryIO) for payload_val in payload.values()):
+        if any(hasattr(payload_val, "read") for payload_val in payload.values()):
             builder = MultipartBuilder()
             for key, payload_val in payload.items():
                 if isinstance(payload_val, BinaryIO):
