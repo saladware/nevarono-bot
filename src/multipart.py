@@ -27,13 +27,11 @@ class MultipartBuilder:
         self.boundary = b"----Boundary%x" % uuid4().int
 
     def add_field(self, name: str, field_val: object) -> None:
-        if isinstance(field_val, str):
-            payload = field_val.encode()
-        elif isinstance(field_val, (list, dict)):
-            payload = json.dumps(field_val).encode()
-        else:
+        try:
+            payload = json.dumps(field_val, ensure_ascii=False).encode()
+        except (UnicodeEncodeError, TypeError) as exc:
             msg = f"cannot add field with value of type {field_val.__class__}"
-            raise TypeError(msg)
+            raise TypeError(msg) from exc
         self._parts.append(FieldPart(name.encode(), payload))
 
     def add_file(
