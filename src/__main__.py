@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+config = get_config()
 
 DB_FILE = Path("published_ids.txt")
 MAX_IDS = 20
@@ -107,9 +108,9 @@ def filter_new_news_items(
 
 def main() -> int:
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    config = get_config()
 
     bot = TelegramBot(config.bot_token)
     try:
@@ -128,12 +129,20 @@ def main() -> int:
     if not news_items:
         return 0
 
+    has_failed_publish = False
+
     for new_item in news_items:
-        publish_news(bot, config.chat_id, new_item)
+        if not publish_news(bot, config.chat_id, new_item):
+            has_failed_publish = True
+
         sleep(3)
         published_ids.append(new_item.id)
 
     save_published_ids(DB_FILE, published_ids)
+
+    if has_failed_publish:
+        logger.error("Some news items failed to publish")
+        return 3
 
     return 0
 
