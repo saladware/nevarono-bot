@@ -57,7 +57,7 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
         with fetch(attachment.link) as response:
             response.name = attachment.filename  # type: ignore[misc]  # ty: ignore[invalid-assignment]
             try:
-                bot.send_local_document(chat_id, response, reply_id=msg["message_id"])
+                bot.send_document(chat_id, response, reply_id=msg["message_id"])
             except Exception:
                 logger.exception(
                     "Error sending file to Telegram %s %s", news.url, attachment.link

@@ -38,7 +38,7 @@ class TelegramBot:
         output = self._call_method("sendMessage", **payload)
         return cast("SendMessageResult", output)
 
-    def send_local_document(
+    def send_document(
         self,
         chat_id: int,
         file_obj: BinaryIO,
