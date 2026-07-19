@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import TYPE_CHECKING, MutableMapping, cast
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
@@ -11,28 +11,47 @@ if TYPE_CHECKING:
 logger = getLogger()
 
 
-def fetch(  # noqa: WPS211, PLR0913
-    domain: str,
-    path: str,
+def fetch(
+    url: str,
     *,
     queries: "dict[str, str] | None" = None,
     headers: "MutableMapping[str, str] | None" = None,
     payload: "bytes | Iterable[bytes] | None" = None,
     timeout: float = 5,
 ) -> "HTTPResponse":
-    query = f"?{urlencode(queries)}" if queries else ""
+    if not (url.startswith(("https://", "http://"))):
+        msg = "url must start with https:// or http://"
+        raise ValueError(msg)
+
+    parsed_url = urlsplit(url)
+
+    url_queries = dict(parse_qsl(parsed_url.query))
+    if queries:
+        url_queries.update(queries)
+
+    new_query = urlencode(url_queries)
+    tail_url = urlunsplit(
+        (
+            "",
+            "",
+            parsed_url.path,
+            new_query,
+            parsed_url.fragment,
+        )
+    )
+
     try:
-        response = urlopen(
-            Request(
-                f"https://{domain}/{path.lstrip('/')}{query}",
-                headers=headers or {},
-                data=payload,
+        return cast(
+            "HTTPResponse",
+            urlopen(
+                Request(
+                    f"https://{parsed_url.netloc}{tail_url}",
+                    headers=headers or {},
+                    data=payload,
+                ),
+                timeout=timeout,
             ),
-            timeout=timeout,
         )
     except HTTPError as exc:
         logger.exception("Request error: %s", exc.read().decode())
-
         raise
-    else:
-        return cast("HTTPResponse", response)

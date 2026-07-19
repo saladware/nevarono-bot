@@ -11,7 +11,7 @@ namespaces = {"atom": "http://www.w3.org/2005/Atom"}
 def get_news_xml(page: int = 1, path: str = "/novosti") -> "list[ET.Element]":
     start = (page - 1) * 10
     queries = {"format": "feed", "type": "atom", "start": str(start)}
-    with fetch(DOMAIN, path, queries=queries) as response:
+    with fetch(f"https://{DOMAIN}/{path.lstrip('/')}", queries=queries) as response:
         return ET.parse(response).findall("atom:entry", namespaces)  # noqa: S314
 
 
@@ -51,5 +51,5 @@ def get_news_json(
     page: int = 1, limit: int = 10, path: str = "/novosti"
 ) -> "list[NewsDict]":
     queries = {"format": "json", "limit": str(limit), "page": str(page)}
-    with fetch(DOMAIN, path, queries=queries) as response:
+    with fetch(f"https://{DOMAIN}/{path.lstrip('/')}", queries=queries) as response:
         return cast("list[NewsDict]", json.load(response)["items"])
