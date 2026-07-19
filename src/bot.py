@@ -1,6 +1,6 @@
 import json
 from logging import getLogger
-from typing import TYPE_CHECKING, BinaryIO, TypedDict, cast
+from typing import TYPE_CHECKING, BinaryIO, Literal, NamedTuple, TypedDict, cast
 
 from src.fetch import fetch
 from src.multipart import MultipartBuilder
@@ -15,6 +15,13 @@ logger = getLogger(__name__)
 
 class SendMessageResult(TypedDict):
     message_id: int
+
+
+class MediaGroupItem(NamedTuple):
+    type: Literal["photo", "video", "document", "audio"]
+    media: BinaryIO
+    caption: "str | None" = None
+    parse_mode: "str | None" = None
 
 
 class TelegramBot:
@@ -55,6 +62,37 @@ class TelegramBot:
             payload["parse_mode"] = parse_mode
         output = self._call_method("sendDocument", **payload)
         return cast("SendMessageResult", output)
+
+    def send_media_group(
+        self,
+        chat_id: int,
+        media_files: "list[MediaGroupItem]",
+        reply_id: "int | None" = None,
+        default_parse_mode: str = "HTML",
+    ) -> "list[SendMessageResult]":
+        payload: dict[str, object] = {"chat_id": chat_id}
+        media_structure: list[dict[str, object]] = []
+
+        for index, media_file in enumerate(media_files):
+            payload[f"media_{index}"] = media_file.media
+            media_item: dict[str, object] = {
+                "type": media_file.type,
+                "media": f"attach://media_{index}",
+            }
+            if media_file.caption:
+                media_item["caption"] = media_file.caption
+                media_item["parse_mode"] = media_file.parse_mode or default_parse_mode
+
+            media_structure.append(media_item)
+
+        payload["media"] = media_structure
+
+        if reply_id is not None:
+            payload["reply_parameters"] = {"message_id": reply_id}
+
+        return cast(
+            "list[SendMessageResult]", self._call_method("sendMediaGroup", **payload)
+        )
 
     def _prepare_request(
         self, payload: "dict[str, object]"

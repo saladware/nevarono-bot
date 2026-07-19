@@ -1,20 +1,21 @@
 import logging
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING
 
-from src.bot import TelegramBot
+from src.bot import MediaGroupItem, SendMessageResult, TelegramBot
 from src.config import get_config
 from src.fetch import fetch
 from src.news_parser import parse_news
 
 if TYPE_CHECKING:
+    from http.client import HTTPResponse
+
     from src.news import NewsItem
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+
 logger = logging.getLogger(__name__)
 
 DB_FILE = Path("published_ids.txt")
@@ -45,25 +46,48 @@ def save_published_ids(
 
 
 def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
+    msg = publish_news_text(bot, chat_id, news)
+    if msg is None:
+        return False
+    if not news.attachments:
+        return True
+    return publish_attachments(bot, chat_id, news, msg["message_id"])
+
+
+def publish_news_text(
+    bot: TelegramBot, chat_id: int, news: "NewsItem"
+) -> "SendMessageResult | None":
     try:
         msg = bot.send_message(chat_id=chat_id, text=str(news), parse_mode="HTML")
     except Exception:
         logger.exception("Error sending message to Telegram %s", news.url)
-        return False
+        return None
     else:
         logger.info("News published with ID %s", news.id)
-    is_ok = True
-    for attachment in news.attachments:
-        with fetch(attachment.link) as response:
-            response.name = attachment.filename  # type: ignore[misc]  # ty: ignore[invalid-assignment]
-            try:
-                bot.send_document(chat_id, response, reply_id=msg["message_id"])
-            except Exception:
-                logger.exception(
-                    "Error sending file to Telegram %s %s", news.url, attachment.link
-                )
-                is_ok = False
-    return is_ok
+        return msg
+
+
+def publish_attachments(
+    bot: TelegramBot, chat_id: int, news: "NewsItem", reply_to_message_id: int
+) -> bool:
+    try:
+        with ExitStack() as stack:
+            files: list[HTTPResponse] = []
+            for attach in news.attachments:
+                resp = stack.enter_context(fetch(attach.link))
+                resp.name = attach.filename  # type: ignore[misc]  # ty: ignore[invalid-assignment]
+                files.append(resp)
+
+            if len(files) == 1:
+                bot.send_document(chat_id, files[0], reply_id=reply_to_message_id)
+            else:
+                media = [MediaGroupItem("document", file_obj) for file_obj in files]
+                bot.send_media_group(chat_id, media, reply_id=reply_to_message_id)
+    except Exception:
+        logger.exception("Error sending attachments to Telegram %s", news.url)
+        return False
+    else:
+        return True
 
 
 def filter_new_news_items(
@@ -82,7 +106,9 @@ def filter_new_news_items(
 
 
 def main() -> int:
-    logging.basicConfig(level="DEBUG")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     config = get_config()
 
     bot = TelegramBot(config.bot_token)
