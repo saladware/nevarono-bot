@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from src.bot import TelegramBot
 from src.config import get_config
+from src.fetch import fetch
 from src.news_parser import parse_news
 
 if TYPE_CHECKING:
@@ -51,15 +52,17 @@ def publish_news(bot: TelegramBot, chat_id: int, news: "NewsItem") -> bool:
         return False
     else:
         logger.info("News published with ID %s", news.id)
+    is_ok = True
     for attachment in news.attachments:
-        try:
-            bot.send_document_by_url(chat_id, attachment.link)
-        except Exception:  # noqa: PERF203
-            logger.exception(
-                "Error sending file to Telegram %s %s", news.url, attachment.link
-            )
-            return False
-    return True
+        with fetch(attachment.link) as response:
+            try:
+                bot.send_local_document(chat_id, response)
+            except Exception:
+                logger.exception(
+                    "Error sending file to Telegram %s %s", news.url, attachment.link
+                )
+                is_ok = False
+    return is_ok
 
 
 def filter_new_news_items(
