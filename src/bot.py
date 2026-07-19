@@ -83,8 +83,8 @@ class TelegramBot:
         if any(hasattr(payload_val, "read") for payload_val in payload.values()):
             builder = MultipartBuilder()
             for key, payload_val in payload.items():
-                if isinstance(payload_val, BinaryIO):
-                    builder.add_file(key, payload_val)
+                if hasattr(payload_val, "read"):
+                    builder.add_file(key, cast("BinaryIO", payload_val))
                 else:
                     builder.add_field(key, payload_val)
             return builder.build_chunked(), builder.headers()
